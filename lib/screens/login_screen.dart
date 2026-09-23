@@ -20,6 +20,30 @@ class _LoginScreenState extends State<LoginScreen> {
   SMITrigger? _trigSuccess;
   SMITrigger? _trigFail;
 
+  //2.1 Crear las variables para FocusNode
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+
+  //2.2 Listeners (Oyentes/chismosos)
+  @override
+  void initState() {
+    super.initState();
+    _emailFocus.addListener((){
+      if (_emailFocus.hasFocus){
+      //Verificar que nosea nulo
+      if(_isHandsUp != null){
+        //Manos abajo en el email
+        _isHandsUp?.change(false);
+       }
+      }
+    });
+
+    _passwordFocus.addListener((){
+      //Manos arriba en el password
+      _isHandsUp?.change(_passwordFocus.hasFocus);
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: size.width,
                 height: 200,
                 child: RiveAnimation.asset(
-                  'login-bear.riv',
+                  'assets/login-bear.riv',
                   stateMachines: ['Login Machine'],
                   //1.2 Vincular animacion
                   onInit:(artboard){
@@ -57,10 +81,11 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(height: 10),
               //Email
               TextField(
+                focusNode:_emailFocus,
                 onChanged:(value){
                   if(_isHandsUp != null){
                   //no tapes los ojos al ver email
-                  _isHandsUp!.change(false);
+                  //_isHandsUp!.change(false);
                   }
                 
                 //Si isCheking e snulo
@@ -83,10 +108,11 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(height: 10),
               //Para Contraseña
               TextField(
+                focusNode:_passwordFocus,
                 onChanged:(value){
                   if(_isChecking !=null){
                   //no tapes los ojos al ver email
-                  _isChecking!.change(false);
+                  //_isChecking!.change(false);
                   }
                 
                 //Si isCheking e snulo
@@ -121,5 +147,12 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+  @override
+  void dispose() {
+    //2.4 Liberar espacio en memoria
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
   }
 }
