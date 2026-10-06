@@ -110,168 +110,170 @@ class _LoginScreenState extends State<LoginScreen> {
     //Para obtener el tamaño de la pantalla
     final Size size = MediaQuery.of(context).size;
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: [
-              SizedBox(
-                width: size.width,
-                height: 200,
-                child: RiveAnimation.asset(
-                  'assets/login-bear.riv',
-                  stateMachines: ['Login Machine'],
-                  //1.2 Vincular animacion
-                  onInit:(artboard){
-                    _controller = StateMachineController.fromArtboard(artboard,'Login Machine',);
-
-                    //1.3 verificar que inicio bien
-                    if(_controller == null) return;
-                    artboard.addController(_controller!);
-                    //vinculamos variables
-                    _isChecking = _controller!.findSMI('isChecking');
-                    _isHandsUp = _controller!.findSMI('isHandsUp');
-                    _trigSuccess = _controller!.findSMI('trigSuccess');
-                    _trigFail = _controller!.findSMI('trigFail');
-                     //3.5 vincular numLook
-                    _numLook = _controller!.findSMI('numLook');
-                  },
+      body: SingleChildScrollView(
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                SizedBox(
+                  width: size.width,
+                  height: 200,
+                  child: RiveAnimation.asset(
+                    'assets/login-bear.riv',
+                    stateMachines: ['Login Machine'],
+                    //1.2 Vincular animacion
+                    onInit:(artboard){
+                      _controller = StateMachineController.fromArtboard(artboard,'Login Machine',);
+        
+                      //1.3 verificar que inicio bien
+                      if(_controller == null) return;
+                      artboard.addController(_controller!);
+                      //vinculamos variables
+                      _isChecking = _controller!.findSMI('isChecking');
+                      _isHandsUp = _controller!.findSMI('isHandsUp');
+                      _trigSuccess = _controller!.findSMI('trigSuccess');
+                      _trigFail = _controller!.findSMI('trigFail');
+                       //3.5 vincular numLook
+                      _numLook = _controller!.findSMI('numLook');
+                    },
+                  ),
                 ),
-              ),
-              //Para separar espacios
-              SizedBox(height: 10),
-              //Email
-              TextField(
-                //4.10 Enlazar controller
-                controller: _emailCtrl,
-                //2.3 
-                focusNode:_emailFocus,
-                onChanged:(value){
-                  if(_isHandsUp != null){
-                  //no tapes los ojos al ver email
-                  //_isHandsUp!.change(false);
-                  }
-                
-                //Si isCheking e snulo
-                if (_isChecking == null) return;
-                //Activar el modo chismoso
-                _isChecking!.change(true);
-
-                //3.6 implementar numlook
-                //Ajuste de limites del 0 al 100
-                //50 es la medida de calibracion 
-                final look = (value.length / 50.0 * 100.0) .clamp(0.0,100.0);
-                //clamp es el rango (abrazadera)
-                _numLook?.value = look;
-
-                //3.7 Debouce: si vuleve a teclar,reinicia el numlook
-                //cancelar cualquier timer existente
-                _typingDebounce?.cancel();
-                //Crear un nuevo timer
-                _typingDebounce = Timer(const Duration(seconds: 3), () {
-                  //si se cierra la pantalla,quita el contador
-                  if (!mounted) return;
-                  //mirada neutra
-                  _isChecking?.change(false);
-                });
-                },
-                //Para mostrar el tipo de teclado
-                keyboardType: TextInputType.emailAddress,
-                decoration:InputDecoration(
-                  //4.11 mostrar error en la UI
-                  errorText: emailError,
-                  hintText: 'Email',
-                  prefixIcon: const Icon(Icons.email),
-                  border: OutlineInputBorder(
-                    //Para redondear los bordes
-                    borderRadius: BorderRadius.circular(12)
-                  )
-                ),
-              ),
-
-              SizedBox(height: 10),
-              //Para Contraseña
-              TextField(
-                //4.10 enlazar controller
-                controller: _passCtrl,
-                focusNode:_passwordFocus,
-                onChanged:(value){
-                  if(_isChecking !=null){
-                  //no tapes los ojos al ver email
-                  //_isChecking!.change(false);
-                  }
-                
-                //Si isCheking e snulo
-                if (_isHandsUp== null) return;
-                //Activar el modo chismoso
-                _isHandsUp!.change(true);
-                },
-                //Para mostrar el tipo de teclado
-                obscureText: _obscure,
-                decoration:InputDecoration(
-                  errorText: passError,
-                  hintText: 'Password',
-                  prefixIcon: const Icon(Icons.lock),
-                  suffixIcon:IconButton(
-                    icon:Icon(
-                     _obscure ? Icons.visibility : Icons.visibility_off,
-                    ),
-                    onPressed:(){
-                      //Refrescar el icono
-                      setState(() {
-                        _obscure = !_obscure;
-                      });
+                //Para separar espacios
+                SizedBox(height: 10),
+                //Email
+                TextField(
+                  //4.10 Enlazar controller
+                  controller: _emailCtrl,
+                  //2.3 
+                  focusNode:_emailFocus,
+                  onChanged:(value){
+                    if(_isHandsUp != null){
+                    //no tapes los ojos al ver email
+                    //_isHandsUp!.change(false);
                     }
-                  ),
-                  border: OutlineInputBorder(
-                    //Para redondear los bordes
-                    borderRadius: BorderRadius.circular(12),
+                  
+                  //Si isCheking e snulo
+                  if (_isChecking == null) return;
+                  //Activar el modo chismoso
+                  _isChecking!.change(true);
+        
+                  //3.6 implementar numlook
+                  //Ajuste de limites del 0 al 100
+                  //50 es la medida de calibracion 
+                  final look = (value.length / 50.0 * 100.0) .clamp(0.0,100.0);
+                  //clamp es el rango (abrazadera)
+                  _numLook?.value = look;
+        
+                  //3.7 Debouce: si vuleve a teclar,reinicia el numlook
+                  //cancelar cualquier timer existente
+                  _typingDebounce?.cancel();
+                  //Crear un nuevo timer
+                  _typingDebounce = Timer(const Duration(seconds: 3), () {
+                    //si se cierra la pantalla,quita el contador
+                    if (!mounted) return;
+                    //mirada neutra
+                    _isChecking?.change(false);
+                  });
+                  },
+                  //Para mostrar el tipo de teclado
+                  keyboardType: TextInputType.emailAddress,
+                  decoration:InputDecoration(
+                    //4.11 mostrar error en la UI
+                    errorText: emailError,
+                    hintText: 'Email',
+                    prefixIcon: const Icon(Icons.email),
+                    border: OutlineInputBorder(
+                      //Para redondear los bordes
+                      borderRadius: BorderRadius.circular(12)
+                    )
                   ),
                 ),
-              ),
-             const SizedBox(height: 10),
-              //4.12 Texto olvide la contraseña
-              SizedBox(
-                width: size.width,
-                child: const Text(
-                  'Forgot password?',
-                  //alinear a la derecha
-                  textAlign: TextAlign.right,
-                  style: TextStyle(decoration: TextDecoration.underline)
-                  ),
-                ),
-             const SizedBox(height: 10),
-             //4.13 Boton de login
-             MaterialButton(
-              onPressed: _onLogin,
-              minWidth: size.width,
-              height: 50,
-              color: Colors.deepPurple,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-                child: Text ('Login',
-                style: TextStyle(color: Colors.white),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: size.width,
-                child: Row(
-                   mainAxisAlignment: MainAxisAlignment.center,
-                   children:[
-                    const Text("Don't have an account?"),
-                    TextButton(onPressed: (){},
-                    child: Text('Register',
-                    style:TextStyle(decoration: TextDecoration.underline,
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold
+        
+                SizedBox(height: 10),
+                //Para Contraseña
+                TextField(
+                  //4.10 enlazar controller
+                  controller: _passCtrl,
+                  focusNode:_passwordFocus,
+                  onChanged:(value){
+                    if(_isChecking !=null){
+                    //no tapes los ojos al ver email
+                    //_isChecking!.change(false);
+                    }
+                  
+                  //Si isCheking e snulo
+                  if (_isHandsUp== null) return;
+                  //Activar el modo chismoso
+                  _isHandsUp!.change(true);
+                  },
+                  //Para mostrar el tipo de teclado
+                  obscureText: _obscure,
+                  decoration:InputDecoration(
+                    errorText: passError,
+                    hintText: 'Password',
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon:IconButton(
+                      icon:Icon(
+                       _obscure ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed:(){
+                        //Refrescar el icono
+                        setState(() {
+                          _obscure = !_obscure;
+                        });
+                      }
                     ),
+                    border: OutlineInputBorder(
+                      //Para redondear los bordes
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                   )
-                  ]
+                  ),
                 ),
-              ),
-            ],
+               const SizedBox(height: 10),
+                //4.12 Texto olvide la contraseña
+                SizedBox(
+                  width: size.width,
+                  child: const Text(
+                    'Forgot password?',
+                    //alinear a la derecha
+                    textAlign: TextAlign.right,
+                    style: TextStyle(decoration: TextDecoration.underline)
+                    ),
+                  ),
+               const SizedBox(height: 10),
+               //4.13 Boton de login
+               MaterialButton(
+                onPressed: _onLogin,
+                minWidth: size.width,
+                height: 50,
+                color: Colors.deepPurple,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+                  child: Text ('Login',
+                  style: TextStyle(color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: size.width,
+                  child: Row(
+                     mainAxisAlignment: MainAxisAlignment.center,
+                     children:[
+                      const Text("Don't have an account?"),
+                      TextButton(onPressed: (){},
+                      child: Text('Register',
+                      style:TextStyle(decoration: TextDecoration.underline,
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold
+                      ),
+                      ),
+                     )
+                    ]
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
