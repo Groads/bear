@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "541867703128",
+    "project_id": "rive-animated-login-a612e",
+    "storage_bucket": "rive-animated-login-a612e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:541867703128:android:6fe81c0b78c2ab3430432d",
+        "android_client_info": {
+          "package_name": "com.example.bear"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzx9nSBpZAyabdrSsd7DKbel5KYERJz0E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

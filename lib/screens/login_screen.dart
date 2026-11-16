@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:rive/rive.dart';
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'register_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,6 +15,15 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+StreamSubscription<User?>? _authSubscription;
+
+User? _currentUser;
+bool _showAuthenticated = false;
+bool _isLoggingIn = false;
+  // Reproduce directamente las animaciones success/fail del archivo .riv.
+  String? _riveReaction;
   // Control para mostrar/ocultar la contraseña
   bool _obscure = true;
 
@@ -91,44 +103,194 @@ class _LoginScreenState extends State<LoginScreen>
   // LOGIN
   // ============================================================
 
-  void _onLogin() {
-    final email = _emailCtrl.text.trim();
-    final pass = _passCtrl.text;
+  
+Future<void> _showRiveReaction(String animation) async {
+    if (!mounted) return;
+    _typingDebounce?.cancel();
+    FocusScope.of(context).unfocus();
+    _isChecking?.change(false);
+    _isHandsUp?.change(false);
 
-    final eError = isValidEmail(email) ? null : 'Invalid email';
-    final pError =
-        isValidPassword(pass) ? null : 'Invalid password';
+    // La máquina de estados controla la interacción al escribir.
+    // Para los resultados reproducimos directamente el clip de Rive,
+    // sin depender de las transiciones internas de Login Machine.
+    setState(() => _riveReaction = animation);
+    _isChecking = null;
+    _isHandsUp = null;
+    _numLook = null;
+    _trigSuccess = null;
+    _trigFail = null;
+    _controller = null;
+    debugPrint('RIVE: reproduciendo animación $animation');
+
+    await Future.delayed(
+      Duration(milliseconds: animation == 'success' ? 2100 : 1700),
+    );
+
+    if (mounted && animation == 'fail') {
+      setState(() => _riveReaction = null);
+    }
+  }
+
+  Future<void> _onLogin() async {
+    if (_isLoggingIn) return;
+
+    final email = _emailCtrl.text.trim();
+    final password = _passCtrl.text;
+    final eError = isValidEmail(email) ? null : 'Introduce un correo válido';
+    final pError = password.isNotEmpty ? null : 'Introduce tu contraseña';
 
     setState(() {
       emailError = eError;
       passError = pError;
+      _isLoggingIn = true;
     });
 
-    // Cancelar el timer de escritura
+    try {
+      if (eError != null || pError != null) {
+        await _showRiveReaction('fail');
+        return;
+      }
+
+      // No activar isChecking durante el envío: pertenece a la
+      // animación de escritura, no a la autenticación.
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+
+      // Firebase emitirá authStateChanges, pero _isLoggingIn impide
+      // navegar hasta haber mostrado la reacción.
+      _currentUser = credential.user;
+      await _showRiveReaction('success');
+      if (!mounted) return;
+      setState(() => _showAuthenticated = true);
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String message;
+      switch (e.code) {
+        case 'invalid-email':
+          message = 'El correo electrónico no es válido.';
+          break;
+        case 'invalid-credential':
+        case 'wrong-password':
+        case 'user-not-found':
+          message = 'Correo o contraseña incorrectos.';
+          break;
+        case 'user-disabled':
+          message = 'Esta cuenta está deshabilitada.';
+          break;
+        case 'network-request-failed':
+          message = 'Comprueba tu conexión a Internet.';
+          break;
+        case 'too-many-requests':
+          message = 'Demasiados intentos. Intenta más tarde.';
+          break;
+        default:
+          message = 'No se pudo iniciar sesión.';
+      }
+      setState(() => passError = message);
+      await _showRiveReaction('fail');
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('Error de autenticación: $e');
+      setState(() => passError = 'Ocurrió un error inesperado.');
+      await _showRiveReaction('fail');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoggingIn = false);
+      }
+    }
+  }
+
+  Future<void> _signOut() async {
+  if (_isLoggingIn) return;
+
+  try {
+    // Cerrar sesión en Firebase.
+    await FirebaseAuth.instance.signOut();
+
+    if (!mounted) return;
+
+    // Detener animaciones y temporizadores.
     _typingDebounce?.cancel();
 
-    // ==========================================================
-    // NUEVO COMPORTAMIENTO:
-    //
-    // Datos correctos -> oso feliz
-    // Datos incorrectos -> oso triste/error
-    //
-    // No necesitamos presionar Login dos veces.
-    // ==========================================================
+    // El artboard del login puede estar desmontado en esta pantalla.
+    _isChecking = null;
+    _isHandsUp = null;
+    _numLook = null;
+    _trigSuccess = null;
+    _trigFail = null;
+    _controller = null;
 
-    if (eError == null && pError == null) {
-      _trigSuccess?.fire();
-    } else {
-      _trigFail?.fire();
-    }
+    _rememberMeAnimationController.reset();
 
-    // Quitar el teclado después de disparar la animación
-    FocusScope.of(context).unfocus();
+    // Quitar el foco de los campos.
+    _emailFocus.unfocus();
+    _passwordFocus.unfocus();
+
+    // Limpiar los datos locales.
+    _emailCtrl.clear();
+    _passCtrl.clear();
+
+    setState(() {
+      _currentUser = null;
+      _showAuthenticated = false;
+      _riveReaction = null;
+
+      _rememberMe = false;
+      _isRememberAnimating = false;
+      _obscure = true;
+
+      emailError = null;
+      passError = null;
+    });
+
+    // Limpiar mensajes anteriores.
+    ScaffoldMessenger.of(context).clearSnackBars();
+
+  } on FirebaseAuthException catch (e) {
+    if (!mounted) return;
+
+    debugPrint('Error al cerrar sesión: ${e.code}');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'No se pudo cerrar la sesión. Inténtalo de nuevo.',
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    debugPrint('Error inesperado al cerrar sesión: $e');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Error al cerrar sesión.'),
+      ),
+    );
   }
+}
 
   @override
   void initState() {
     super.initState();
+    _authSubscription = _auth.authStateChanges().listen((user) {
+  if (!mounted) return;
+
+  setState(() {
+    _currentUser = user;
+
+    if (user == null) {
+      _showAuthenticated = false;
+    } else if (!_isLoggingIn) {
+      _showAuthenticated = true;
+    }
+  });
+});
 
     // ============================================================
     // REMEMBER ME - ANIMACIÓN
@@ -180,12 +342,72 @@ class _LoginScreenState extends State<LoginScreen>
 
     _emailCtrl.dispose();
     _passCtrl.dispose();
-
+    _authSubscription?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    
+if (_showAuthenticated && _currentUser != null) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('Inicio'),
+      backgroundColor: Colors.deepPurple,
+      foregroundColor: Colors.white,
+    ),
+
+    body: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.check_circle,
+            color: Colors.green,
+            size: 80,
+          ),
+
+          const SizedBox(height: 20),
+
+          const Text(
+            '¡Inicio de sesión exitoso!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Text(
+            _currentUser!.email ?? 'Usuario autenticado',
+          ),
+
+          const SizedBox(height: 32),
+
+          // BOTÓN PARA CERRAR SESIÓN
+          ElevatedButton.icon(
+          onPressed: _signOut,
+
+          icon: const Icon(Icons.logout),
+          label: const Text('Cerrar sesión'),
+
+          style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.deepPurple,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(
+          horizontal: 28,
+          vertical: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
@@ -202,35 +424,30 @@ class _LoginScreenState extends State<LoginScreen>
 
               SizedBox(
                 height: size.height * 0.30,
-                child: RiveAnimation.asset(
-                  'assets/login-bear.riv',
-                  stateMachines: const ['Login Machine'],
-                  onInit: (artboard) {
-                    _controller = StateMachineController.fromArtboard(
-                      artboard,
-                      'Login Machine',
-                    );
-
-                    if (_controller == null) return;
-
-                    artboard.addController(_controller!);
-
-                    _isChecking =
-                        _controller!.findSMI('isChecking');
-
-                    _isHandsUp =
-                        _controller!.findSMI('isHandsUp');
-
-                    _trigSuccess =
-                        _controller!.findSMI('trigSuccess');
-
-                    _trigFail =
-                        _controller!.findSMI('trigFail');
-
-                    _numLook =
-                        _controller!.findSMI('numLook');
-                  },
-                ),
+                child: _riveReaction != null
+                    ? RiveAnimation.asset(
+                        'assets/login-bear.riv',
+                        key: ValueKey('reaction-$_riveReaction'),
+                        animations: [_riveReaction!],
+                        fit: BoxFit.contain,
+                      )
+                    : RiveAnimation.asset(
+                        'assets/login-bear.riv',
+                        key: const ValueKey('login-machine'),
+                        onInit: (artboard) {
+                          _controller = StateMachineController.fromArtboard(
+                            artboard,
+                            'Login Machine',
+                          );
+                          if (_controller == null) return;
+                          artboard.addController(_controller!);
+                          _isChecking = _controller!.findSMI('isChecking');
+                          _isHandsUp = _controller!.findSMI('isHandsUp');
+                          _trigSuccess = _controller!.findSMI('trigSuccess');
+                          _trigFail = _controller!.findSMI('trigFail');
+                          _numLook = _controller!.findSMI('numLook');
+                        },
+                      ),
               ),
 
               const SizedBox(height: 10),
@@ -291,9 +508,7 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ),
               ),
-
-              const SizedBox(height: 16),
-
+              const SizedBox(height: 24),
               // ==================================================
               // PASSWORD
               // ==================================================
@@ -426,12 +641,23 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ),
 
-                  const Text(
-                    'Forgot password?',
-                    style: TextStyle(
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
+                  TextButton(
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            const ForgotPasswordScreen(),
+      ),
+    );
+  },
+  child: const Text(
+    'Forgot password?',
+    style: TextStyle(
+      decoration: TextDecoration.underline,
+    ),
+  ),
+),
                 ],
               ),
 
@@ -442,7 +668,7 @@ class _LoginScreenState extends State<LoginScreen>
               // ==================================================
 
               MaterialButton(
-                onPressed: _onLogin,
+                onPressed: _isLoggingIn ? null : _onLogin,
                 color: Colors.deepPurple,
                 minWidth: size.width,
                 height: 50,
@@ -471,9 +697,16 @@ class _LoginScreenState extends State<LoginScreen>
                     "Don't have an account?",
                   ),
                   TextButton(
-                    onPressed: () {},
-                    child: const Text('Register'),
-                  ),
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const RegisterScreen(),
+      ),
+    );
+  },
+  child: const Text('Register'),
+),
                 ],
               ),
             ],
