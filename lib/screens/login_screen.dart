@@ -1,10 +1,13 @@
-
 import 'package:flutter/material.dart';
 import 'package:rive/rive.dart';
+
 import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
+import 'products_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,11 +20,11 @@ class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<User?>? _authSubscription;
 
-User? _currentUser;
-bool _showAuthenticated = false;
-bool _isLoggingIn = false;
+  User? _currentUser;
+  bool _showAuthenticated = false;
+  bool _isLoggingIn = false;
   // Reproduce directamente las animaciones success/fail del archivo .riv.
   String? _riveReaction;
   // Control para mostrar/ocultar la contraseña
@@ -53,6 +56,7 @@ bool _isLoggingIn = false;
   // Errores para mostrar en la UI
   String? emailError;
   String? passError;
+  String? authError;
 
   // ============================================================
   // REMEMBER ME
@@ -64,8 +68,7 @@ bool _isLoggingIn = false;
   late AnimationController _rememberMeAnimationController;
 
   bool get _canUseRememberMe {
-    return _emailCtrl.text.trim().isNotEmpty &&
-        _passCtrl.text.isNotEmpty;
+    return _emailCtrl.text.trim().isNotEmpty && _passCtrl.text.isNotEmpty;
   }
 
   void _toggleRememberMe() {
@@ -103,8 +106,7 @@ bool _isLoggingIn = false;
   // LOGIN
   // ============================================================
 
-  
-Future<void> _showRiveReaction(String animation) async {
+  Future<void> _showRiveReaction(String animation) async {
     if (!mounted) return;
     _typingDebounce?.cancel();
     FocusScope.of(context).unfocus();
@@ -138,11 +140,14 @@ Future<void> _showRiveReaction(String animation) async {
     final email = _emailCtrl.text.trim();
     final password = _passCtrl.text;
     final eError = isValidEmail(email) ? null : 'Introduce un correo válido';
-    final pError = password.isNotEmpty ? null : 'Introduce tu contraseña';
+    final pError = isValidPassword(password)
+        ? null
+        : 'Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo';
 
     setState(() {
       emailError = eError;
       passError = pError;
+      authError = null;
       _isLoggingIn = true;
     });
 
@@ -163,9 +168,15 @@ Future<void> _showRiveReaction(String animation) async {
       // Firebase emitirá authStateChanges, pero _isLoggingIn impide
       // navegar hasta haber mostrado la reacción.
       _currentUser = credential.user;
+
       await _showRiveReaction('success');
+
       if (!mounted) return;
-      setState(() => _showAuthenticated = true);
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ProductsScreen()),
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       String message;
@@ -190,12 +201,12 @@ Future<void> _showRiveReaction(String animation) async {
         default:
           message = 'No se pudo iniciar sesión.';
       }
-      setState(() => passError = message);
+      setState(() => authError = message);
       await _showRiveReaction('fail');
     } catch (e) {
       if (!mounted) return;
       debugPrint('Error de autenticación: $e');
-      setState(() => passError = 'Ocurrió un error inesperado.');
+      setState(() => authError = 'Ocurrió un error inesperado.');
       await _showRiveReaction('fail');
     } finally {
       if (mounted) {
@@ -205,92 +216,87 @@ Future<void> _showRiveReaction(String animation) async {
   }
 
   Future<void> _signOut() async {
-  if (_isLoggingIn) return;
+    if (_isLoggingIn) return;
 
-  try {
-    // Cerrar sesión en Firebase.
-    await FirebaseAuth.instance.signOut();
+    try {
+      // Cerrar sesión en Firebase.
+      await FirebaseAuth.instance.signOut();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    // Detener animaciones y temporizadores.
-    _typingDebounce?.cancel();
+      // Detener animaciones y temporizadores.
+      _typingDebounce?.cancel();
 
-    // El artboard del login puede estar desmontado en esta pantalla.
-    _isChecking = null;
-    _isHandsUp = null;
-    _numLook = null;
-    _trigSuccess = null;
-    _trigFail = null;
-    _controller = null;
+      // El artboard del login puede estar desmontado en esta pantalla.
+      _isChecking = null;
+      _isHandsUp = null;
+      _numLook = null;
+      _trigSuccess = null;
+      _trigFail = null;
+      _controller = null;
 
-    _rememberMeAnimationController.reset();
+      _rememberMeAnimationController.reset();
 
-    // Quitar el foco de los campos.
-    _emailFocus.unfocus();
-    _passwordFocus.unfocus();
+      // Quitar el foco de los campos.
+      _emailFocus.unfocus();
+      _passwordFocus.unfocus();
 
-    // Limpiar los datos locales.
-    _emailCtrl.clear();
-    _passCtrl.clear();
+      // Limpiar los datos locales.
+      _emailCtrl.clear();
+      _passCtrl.clear();
 
-    setState(() {
-      _currentUser = null;
-      _showAuthenticated = false;
-      _riveReaction = null;
+      setState(() {
+        _currentUser = null;
+        _showAuthenticated = false;
+        _riveReaction = null;
 
-      _rememberMe = false;
-      _isRememberAnimating = false;
-      _obscure = true;
+        _rememberMe = false;
+        _isRememberAnimating = false;
+        _obscure = true;
 
-      emailError = null;
-      passError = null;
-    });
+        emailError = null;
+        passError = null;
+      });
 
-    // Limpiar mensajes anteriores.
-    ScaffoldMessenger.of(context).clearSnackBars();
+      // Limpiar mensajes anteriores.
+      ScaffoldMessenger.of(context).clearSnackBars();
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
 
-  } on FirebaseAuthException catch (e) {
-    if (!mounted) return;
+      debugPrint('Error al cerrar sesión: ${e.code}');
 
-    debugPrint('Error al cerrar sesión: ${e.code}');
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'No se pudo cerrar la sesión. Inténtalo de nuevo.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo cerrar la sesión. Inténtalo de nuevo.'),
         ),
-      ),
-    );
-  } catch (e) {
-    if (!mounted) return;
+      );
+    } catch (e) {
+      if (!mounted) return;
 
-    debugPrint('Error inesperado al cerrar sesión: $e');
+      debugPrint('Error inesperado al cerrar sesión: $e');
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Error al cerrar sesión.'),
-      ),
-    );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Error al cerrar sesión.')));
+    }
   }
-}
 
   @override
   void initState() {
     super.initState();
     _authSubscription = _auth.authStateChanges().listen((user) {
-  if (!mounted) return;
+      if (!mounted) return;
 
-  setState(() {
-    _currentUser = user;
+      setState(() {
+        _currentUser = user;
 
-    if (user == null) {
-      _showAuthenticated = false;
-    } else if (!_isLoggingIn) {
-      _showAuthenticated = true;
-    }
-  });
-});
+        if (user == null) {
+          _showAuthenticated = false;
+        } else if (!_isLoggingIn) {
+          _showAuthenticated = true;
+        }
+      });
+    });
 
     // ============================================================
     // REMEMBER ME - ANIMACIÓN
@@ -301,17 +307,15 @@ Future<void> _showRiveReaction(String animation) async {
       duration: const Duration(milliseconds: 300),
     );
 
-    _rememberMeAnimationController.addStatusListener(
-      (status) {
-        if (status == AnimationStatus.completed) {
-          if (!mounted) return;
+    _rememberMeAnimationController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        if (!mounted) return;
 
-          setState(() {
-            _isRememberAnimating = false;
-          });
-        }
-      },
-    );
+        setState(() {
+          _isRememberAnimating = false;
+        });
+      }
+    });
 
     // ============================================================
     // ANIMACIONES DEL OSO
@@ -348,65 +352,55 @@ Future<void> _showRiveReaction(String animation) async {
 
   @override
   Widget build(BuildContext context) {
-    
-if (_showAuthenticated && _currentUser != null) {
-  return Scaffold(
-    appBar: AppBar(
-      title: const Text('Inicio'),
-      backgroundColor: Colors.deepPurple,
-      foregroundColor: Colors.white,
-    ),
-
-    body: Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.check_circle,
-            color: Colors.green,
-            size: 80,
-          ),
-
-          const SizedBox(height: 20),
-
-          const Text(
-            '¡Inicio de sesión exitoso!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Text(
-            _currentUser!.email ?? 'Usuario autenticado',
-          ),
-
-          const SizedBox(height: 32),
-
-          // BOTÓN PARA CERRAR SESIÓN
-          ElevatedButton.icon(
-          onPressed: _signOut,
-
-          icon: const Icon(Icons.logout),
-          label: const Text('Cerrar sesión'),
-
-          style: ElevatedButton.styleFrom(
+    if (_showAuthenticated && _currentUser != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Inicio'),
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(
-          horizontal: 28,
-          vertical: 16,
+        ),
+
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.check_circle, color: Colors.green, size: 80),
+
+              const SizedBox(height: 20),
+
+              const Text(
+                '¡Inicio de sesión exitoso!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
-            ),
+
+              const SizedBox(height: 12),
+
+              Text(_currentUser!.email ?? 'Usuario autenticado'),
+
+              const SizedBox(height: 32),
+
+              // BOTÓN PARA CERRAR SESIÓN
+              ElevatedButton.icon(
+                onPressed: _signOut,
+
+                icon: const Icon(Icons.logout),
+                label: const Text('Cerrar sesión'),
+
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 16,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
-}
+        ),
+      );
+    }
 
     final size = MediaQuery.of(context).size;
 
@@ -421,7 +415,6 @@ if (_showAuthenticated && _currentUser != null) {
               // ==================================================
               // OSO RIVE
               // ==================================================
-
               SizedBox(
                 height: size.height * 0.30,
                 child: _riveReaction != null
@@ -454,10 +447,7 @@ if (_showAuthenticated && _currentUser != null) {
 
               const Text(
                 'Welcome Back',
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 30),
@@ -465,7 +455,6 @@ if (_showAuthenticated && _currentUser != null) {
               // ==================================================
               // EMAIL
               // ==================================================
-
               TextField(
                 controller: _emailCtrl,
                 focusNode: _emailFocus,
@@ -482,21 +471,17 @@ if (_showAuthenticated && _currentUser != null) {
 
                   _isChecking!.change(true);
 
-                  final look = (value.length / 50.0 * 100.0)
-                      .clamp(0.0, 100.0);
+                  final look = (value.length / 50.0 * 100.0).clamp(0.0, 100.0);
 
                   _numLook?.value = look;
 
                   _typingDebounce?.cancel();
 
-                  _typingDebounce = Timer(
-                    const Duration(seconds: 3),
-                    () {
-                      if (!mounted) return;
+                  _typingDebounce = Timer(const Duration(seconds: 3), () {
+                    if (!mounted) return;
 
-                      _isChecking?.change(false);
-                    },
-                  );
+                    _isChecking?.change(false);
+                  });
                 },
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
@@ -536,9 +521,7 @@ if (_showAuthenticated && _currentUser != null) {
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscure
-                          ? Icons.visibility
-                          : Icons.visibility_off,
+                      _obscure ? Icons.visibility : Icons.visibility_off,
                     ),
                     onPressed: () {
                       setState(() {
@@ -557,70 +540,54 @@ if (_showAuthenticated && _currentUser != null) {
               // ==================================================
               // REMEMBER ME + FORGOT PASSWORD
               // ==================================================
-
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GestureDetector(
-                    onTap: (!_canUseRememberMe ||
-                            _isRememberAnimating)
+                    onTap: (!_canUseRememberMe || _isRememberAnimating)
                         ? null
                         : _toggleRememberMe,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         AnimatedBuilder(
-                          animation:
-                              _rememberMeAnimationController,
+                          animation: _rememberMeAnimationController,
                           builder: (context, child) {
-                            final scale = 1.0 +
-                                (_rememberMeAnimationController
-                                        .value *
-                                    0.10);
+                            final scale =
+                                1.0 +
+                                (_rememberMeAnimationController.value * 0.10);
 
                             return Transform.scale(
                               scale: scale,
                               child: AnimatedContainer(
-                                duration:
-                                    const Duration(
-                                  milliseconds: 200,
-                                ),
+                                duration: const Duration(milliseconds: 200),
                                 width: 24,
                                 height: 24,
                                 decoration: BoxDecoration(
                                   color: !_canUseRememberMe
                                       ? Colors.grey.shade200
                                       : _rememberMe
-                                          ? Colors.deepPurple
-                                          : Colors.transparent,
+                                      ? Colors.deepPurple
+                                      : Colors.transparent,
                                   border: Border.all(
                                     color: !_canUseRememberMe
                                         ? Colors.grey
                                         : Colors.deepPurple,
                                     width: 2,
                                   ),
-                                  borderRadius:
-                                      BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: AnimatedSwitcher(
-                                  duration:
-                                      const Duration(
-                                    milliseconds: 150,
-                                  ),
+                                  duration: const Duration(milliseconds: 150),
                                   child: _rememberMe
                                       ? const Icon(
                                           Icons.check,
-                                          key: ValueKey(
-                                            'checked',
-                                          ),
+                                          key: ValueKey('checked'),
                                           color: Colors.white,
                                           size: 18,
                                         )
                                       : const SizedBox(
-                                          key: ValueKey(
-                                            'unchecked',
-                                          ),
+                                          key: ValueKey('unchecked'),
                                         ),
                                 ),
                               ),
@@ -642,31 +609,43 @@ if (_showAuthenticated && _currentUser != null) {
                   ),
 
                   TextButton(
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            const ForgotPasswordScreen(),
-      ),
-    );
-  },
-  child: const Text(
-    'Forgot password?',
-    style: TextStyle(
-      decoration: TextDecoration.underline,
-    ),
-  ),
-),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ForgotPasswordScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'Forgot password?',
+                      style: TextStyle(decoration: TextDecoration.underline),
+                    ),
+                  ),
                 ],
               ),
+              if (authError != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    authError!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               const SizedBox(height: 24),
 
               // ==================================================
               // LOGIN
               // ==================================================
-
               MaterialButton(
                 onPressed: _isLoggingIn ? null : _onLogin,
                 color: Colors.deepPurple,
@@ -675,13 +654,19 @@ if (_showAuthenticated && _currentUser != null) {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'Login',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
+                child: _isLoggingIn
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Login',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
               ),
 
               const SizedBox(height: 20),
@@ -689,24 +674,21 @@ if (_showAuthenticated && _currentUser != null) {
               // ==================================================
               // REGISTER
               // ==================================================
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    "Don't have an account?",
-                  ),
+                  const Text("Don't have an account?"),
                   TextButton(
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const RegisterScreen(),
-      ),
-    );
-  },
-  child: const Text('Register'),
-),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('Register'),
+                  ),
                 ],
               ),
             ],
